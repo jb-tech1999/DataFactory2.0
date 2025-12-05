@@ -2,11 +2,12 @@
 Connectors module for DataFactory
 Provides source and sink connectors for various data systems
 """
+import os
 import pandas as pd
 import pyodbc
 import sqlalchemy
 from abc import ABC, abstractmethod
-from typing import Optional
+from urllib.parse import quote_plus
 
 
 class SourceConnector(ABC):
@@ -97,7 +98,9 @@ class PostgreSQLSourceConnector(SourceConnector):
     
     def connect(self):
         """Establish PostgreSQL connection"""
-        connection_string = f'postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}'
+        # URL encode password to handle special characters
+        encoded_password = quote_plus(self.password)
+        connection_string = f'postgresql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}'
         self.engine = sqlalchemy.create_engine(connection_string)
         self.connection = self.engine.connect()
     
@@ -132,7 +135,9 @@ class MySQLSourceConnector(SourceConnector):
     
     def connect(self):
         """Establish MySQL connection"""
-        connection_string = f'mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}'
+        # URL encode password to handle special characters
+        encoded_password = quote_plus(self.password)
+        connection_string = f'mysql+pymysql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}'
         self.engine = sqlalchemy.create_engine(connection_string)
         self.connection = self.engine.connect()
     
@@ -170,7 +175,6 @@ class CSVSourceConnector(SourceConnector):
     
     def get_tables(self) -> pd.DataFrame:
         """Get table information (returns file name as table)"""
-        import os
         table_name = os.path.basename(self.file_path)
         return pd.DataFrame({'TABLE_NAME': [table_name]})
     
@@ -196,7 +200,6 @@ class JSONSourceConnector(SourceConnector):
     
     def get_tables(self) -> pd.DataFrame:
         """Get table information (returns file name as table)"""
-        import os
         table_name = os.path.basename(self.file_path)
         return pd.DataFrame({'TABLE_NAME': [table_name]})
     
@@ -241,7 +244,9 @@ class PostgreSQLSinkConnector(SinkConnector):
     
     def connect(self):
         """Establish PostgreSQL connection"""
-        connection_string = f'postgresql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}'
+        # URL encode password to handle special characters
+        encoded_password = quote_plus(self.password)
+        connection_string = f'postgresql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}'
         self.engine = sqlalchemy.create_engine(connection_string)
     
     def write_data(self, df: pd.DataFrame, table_name: str):
@@ -267,7 +272,9 @@ class MySQLSinkConnector(SinkConnector):
     
     def connect(self):
         """Establish MySQL connection"""
-        connection_string = f'mysql+pymysql://{self.user}:{self.password}@{self.host}:{self.port}/{self.database}'
+        # URL encode password to handle special characters
+        encoded_password = quote_plus(self.password)
+        connection_string = f'mysql+pymysql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}'
         self.engine = sqlalchemy.create_engine(connection_string)
     
     def write_data(self, df: pd.DataFrame, table_name: str):
@@ -288,12 +295,10 @@ class CSVSinkConnector(SinkConnector):
     
     def connect(self):
         """Ensure directory exists"""
-        import os
         os.makedirs(self.directory, exist_ok=True)
     
     def write_data(self, df: pd.DataFrame, table_name: str):
         """Write data to CSV file"""
-        import os
         file_path = os.path.join(self.directory, f'{table_name}.csv')
         df.to_csv(file_path, index=False)
     
@@ -310,12 +315,10 @@ class JSONSinkConnector(SinkConnector):
     
     def connect(self):
         """Ensure directory exists"""
-        import os
         os.makedirs(self.directory, exist_ok=True)
     
     def write_data(self, df: pd.DataFrame, table_name: str):
         """Write data to JSON file"""
-        import os
         file_path = os.path.join(self.directory, f'{table_name}.json')
         df.to_json(file_path, orient='records', indent=2)
     
