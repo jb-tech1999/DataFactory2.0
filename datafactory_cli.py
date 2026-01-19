@@ -4,9 +4,9 @@ import sqlalchemy
 from connectors import (
     SourceConnector, SinkConnector,
     ODBCSourceConnector, PostgreSQLSourceConnector, MySQLSourceConnector,
-    CSVSourceConnector, JSONSourceConnector,
+    CSVSourceConnector, JSONSourceConnector, ExcelSourceConnector,
     SQLiteSinkConnector, PostgreSQLSinkConnector, MySQLSinkConnector,
-    CSVSinkConnector, JSONSinkConnector
+    CSVSinkConnector, JSONSinkConnector, ParquetSinkConnector
 )
 
 

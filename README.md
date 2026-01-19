@@ -10,6 +10,7 @@ DataFactory 2.0 is a flexible data integration tool inspired by Microsoft Azure 
   - MySQL
   - CSV files
   - JSON files
+  - **Excel files** (NEW in 2.0)
 
 - **Multiple Sink Connectors**: Write data to various destinations
   - SQLite
@@ -17,6 +18,19 @@ DataFactory 2.0 is a flexible data integration tool inspired by Microsoft Azure 
   - MySQL
   - CSV files
   - JSON files
+  - **Parquet files** (NEW in 2.0)
+
+- **REST API**: Full-featured API for job management and monitoring
+  - Create, read, update, delete jobs
+  - Execute jobs on-demand or on schedule
+  - View job history and logs
+  - Monitor scheduled jobs
+
+- **Job Management**: Define and manage data integration jobs
+  - Store job definitions in SQLite
+  - Track execution history
+  - Detailed logging for each execution
+  - Schedule jobs with cron expressions
 
 - **Extensible Architecture**: Easy to add new connectors
 - **Backward Compatibility**: Maintains compatibility with the original interface
@@ -47,7 +61,55 @@ pip install -r requirements.txt
 
 ## Usage
 
-### New Connector-Based Approach (Recommended)
+### Quick Start with API (Recommended)
+
+Start the API server:
+
+```bash
+python api.py
+```
+
+The API will be available at `http://localhost:8000`. Visit `http://localhost:8000/docs` for interactive API documentation.
+
+### New Connector-Based Approach
+
+#### Excel to Parquet
+
+```python
+import datafactory_cli
+from connectors import ExcelSourceConnector, ParquetSinkConnector
+
+# Create source and sink connectors
+source = ExcelSourceConnector(file_path='data.xlsx', sheet_name='Sheet1')
+sink = ParquetSinkConnector(directory='output_parquet')
+
+# Create DataFactory instance
+app = datafactory_cli.DataFactory(source_connector=source, sink_connector=sink)
+
+# Get and transfer data
+df = app.get_data()
+app.write_data(df, 'output_data')
+app.close_connections()
+```
+
+#### Database to Parquet
+
+```python
+from connectors import PostgreSQLSourceConnector, ParquetSinkConnector
+
+source = PostgreSQLSourceConnector(
+    host='localhost', port=5432, database='mydb',
+    user='user', password='pass', schema='public'
+)
+sink = ParquetSinkConnector(directory='output_parquet')
+
+app = datafactory_cli.DataFactory(source_connector=source, sink_connector=sink)
+tables = app.get_tables()
+for table in tables['table_name'].tolist():
+    df = app.get_data(f"SELECT * FROM {table}")
+    app.write_data(df, table)
+app.close_connections()
+```
 
 ```python
 import datafactory_cli
@@ -154,6 +216,7 @@ app.close_connections()
 - **MySQLSourceConnector**: Connect to MySQL databases
 - **CSVSourceConnector**: Read data from CSV files
 - **JSONSourceConnector**: Read data from JSON files
+- **ExcelSourceConnector**: Read data from Excel files (.xlsx, .xls)
 
 ### Sink Connectors
 
@@ -162,6 +225,104 @@ app.close_connections()
 - **MySQLSinkConnector**: Write to MySQL databases
 - **CSVSinkConnector**: Write to CSV files
 - **JSONSinkConnector**: Write to JSON files
+- **ParquetSinkConnector**: Write to Parquet files
+
+## API Usage
+
+DataFactory 2.0 provides a comprehensive REST API for managing data integration jobs.
+
+### Starting the API
+
+```bash
+python api.py
+```
+
+The API runs on `http://localhost:8000` by default. Interactive documentation is available at `http://localhost:8000/docs`.
+
+### API Endpoints
+
+#### Job Management
+
+- `POST /jobs` - Create a new job
+- `GET /jobs` - List all jobs with last run information
+- `GET /jobs/{job_id}` - Get job details
+- `PUT /jobs/{job_id}` - Update job configuration
+- `DELETE /jobs/{job_id}` - Delete a job
+
+#### Job Execution
+
+- `POST /jobs/{job_id}/execute` - Execute a job immediately
+
+#### History & Logs
+
+- `GET /history` - Get execution history for all jobs
+- `GET /jobs/{job_id}/history` - Get execution history for a specific job
+- `GET /logs/{history_id}` - Get logs for a specific execution
+
+#### Scheduler
+
+- `GET /scheduler/jobs` - List scheduled jobs
+- `POST /scheduler/pause` - Pause the scheduler
+- `POST /scheduler/resume` - Resume the scheduler
+
+#### System
+
+- `GET /health` - Health check
+- `GET /connectors` - List available connectors
+
+### Example: Creating a Job via API
+
+```python
+import requests
+
+job_data = {
+    "job_name": "excel_to_parquet",
+    "source_type": "excel",
+    "source_config": {
+        "file_path": "/path/to/data.xlsx",
+        "sheet_name": "Sheet1"
+    },
+    "sink_type": "parquet",
+    "sink_config": {
+        "directory": "/path/to/output"
+    },
+    "schedule": "0 2 * * *"  # Run daily at 2 AM
+}
+
+response = requests.post("http://localhost:8000/jobs", json=job_data)
+print(response.json())
+```
+
+### Example: Executing a Job
+
+```python
+import requests
+
+job_id = 1
+response = requests.post(f"http://localhost:8000/jobs/{job_id}/execute")
+result = response.json()
+print(f"Status: {result['status']}")
+print(f"Records processed: {result['records_processed']}")
+```
+
+### Job Scheduling
+
+Jobs can be scheduled using cron expressions. For example:
+
+- `"0 2 * * *"` - Run daily at 2 AM
+- `"0 */4 * * *"` - Run every 4 hours
+- `"0 0 * * 0"` - Run weekly on Sunday at midnight
+- `"0 0 1 * *"` - Run monthly on the 1st at midnight
+
+## Job Management System
+
+DataFactory 2.0 includes a complete job management system with:
+
+- **Job Definitions**: Store source, sink, and configuration
+- **Execution History**: Track every job execution
+- **Detailed Logging**: Log all operations to SQLite
+- **Scheduling**: Run jobs on a schedule using cron expressions
+- **Status Tracking**: Monitor job success/failure and record counts
 
 ## Configuration
 
@@ -185,6 +346,11 @@ See `requirements.txt` for all dependencies. Key requirements:
 - pyodbc: ODBC connections
 - pymysql: MySQL support
 - psycopg2-binary: PostgreSQL support
+- openpyxl: Excel file support
+- pyarrow: Parquet file support
+- fastapi: REST API framework
+- uvicorn: ASGI server
+- APScheduler: Job scheduling
 
 ## Examples
 
