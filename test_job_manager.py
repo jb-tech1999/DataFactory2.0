@@ -20,8 +20,13 @@ def test_job_creation():
     csv_path = '/tmp/datafactory_test/source.csv'
     test_data.to_csv(csv_path, index=False)
     
+    # Remove old test database
+    test_db = '/tmp/datafactory_test/test_jobs.db'
+    if os.path.exists(test_db):
+        os.remove(test_db)
+    
     # Create job manager
-    jm = JobManager(db_path='/tmp/datafactory_test/test_jobs.db')
+    jm = JobManager(db_path=test_db)
     
     # Create a job
     job_id = jm.create_job(
