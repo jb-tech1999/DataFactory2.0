@@ -10,6 +10,8 @@ from abc import ABC, abstractmethod
 from urllib.parse import quote_plus
 
 
+from typing import List
+
 class SourceConnector(ABC):
     """Abstract base class for source connectors"""
     
@@ -51,6 +53,15 @@ class SinkConnector(ABC):
     def close(self):
         """Close the connection"""
         pass
+
+    def get_objects(self) -> List[str]:
+        """Get list of objects (tables/files) in sink"""
+        return []
+
+    def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+        """Get preview data from sink object"""
+        return pd.DataFrame()
+
 
 
 # Source Connectors
@@ -269,7 +280,21 @@ class SQLiteSinkConnector(SinkConnector):
     def close(self):
         """Close SQLite connection"""
         if self.engine:
-            self.engine.dispose()
+            def get_objects(self) -> List[str]:
+                """Get list of tables in SQLite database"""
+                if not self.engine:
+                    self.connect()
+                inspector = sqlalchemy.inspect(self.engine)
+                return inspector.get_table_names()
+
+            def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+                """Get preview data from SQLite table"""
+                if not self.engine:
+                    self.connect()
+                query = f"SELECT * FROM {object_name} LIMIT {limit}"
+                return pd.read_sql(query, self.engine)
+
+        self.engine.dispose()
 
 
 class PostgreSQLSinkConnector(SinkConnector):
@@ -283,6 +308,20 @@ class PostgreSQLSinkConnector(SinkConnector):
         self.password = password
         self.engine = None
     
+    def get_objects(self) -> List[str]:
+        """Get list of tables in PostgreSQL database"""
+        if not self.engine:
+            self.connect()
+        inspector = sqlalchemy.inspect(self.engine)
+        return inspector.get_table_names()
+
+    def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+        """Get preview data from PostgreSQL table"""
+        if not self.engine:
+            self.connect()
+        query = f"SELECT * FROM {object_name} LIMIT {limit}"
+        return pd.read_sql(query, self.engine)
+
     def connect(self):
         """Establish PostgreSQL connection"""
         # URL encode password to handle special characters
@@ -297,12 +336,37 @@ class PostgreSQLSinkConnector(SinkConnector):
     def close(self):
         """Close PostgreSQL connection"""
         if self.engine:
-            self.engine.dispose()
+            def get_objects(self) -> List[str]:
+                """Get list of tables in MySQL database"""
+                if not self.engine:
+                    self.connect()
+                inspector = sqlalchemy.inspect(self.engine)
+                return inspector.get_table_names()
+
+            def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+                """Get preview data from MySQL table"""
+                if not self.engine:
+                    self.connect()
+                query = f"SELECT * FROM {object_name} LIMIT {limit}"
+                return pd.read_sql(query, self.engine)
+
+        self.engine.dispose()
 
 
 class MySQLSinkConnector(SinkConnector):
     """MySQL sink connector"""
     
+    def get_objects(self) -> List[str]:
+        """Get list of CSV files in directory"""
+        if not os.path.exists(self.directory):
+            return []
+        return [f for f in os.listdir(self.directory) if f.endswith('.csv')]
+
+    def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+        """Get preview data from CSV file"""
+        file_path = os.path.join(self.directory, object_name)
+        return pd.read_csv(file_path, nrows=limit)
+
     def __init__(self, host: str, port: int, database: str, user: str, password: str):
         self.host = host
         self.port = port
@@ -314,6 +378,17 @@ class MySQLSinkConnector(SinkConnector):
     def connect(self):
         """Establish MySQL connection"""
         # URL encode password to handle special characters
+    def get_objects(self) -> List[str]:
+        """Get list of JSON files in directory"""
+        if not os.path.exists(self.directory):
+            return []
+        return [f for f in os.listdir(self.directory) if f.endswith('.json')]
+
+    def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+        """Get preview data from JSON file"""
+        file_path = os.path.join(self.directory, object_name)
+        return pd.read_json(file_path).head(limit)
+
         encoded_password = quote_plus(self.password)
         connection_string = f'mysql+pymysql://{self.user}:{encoded_password}@{self.host}:{self.port}/{self.database}'
         self.engine = sqlalchemy.create_engine(connection_string)
@@ -327,6 +402,18 @@ class MySQLSinkConnector(SinkConnector):
         if self.engine:
             self.engine.dispose()
 
+
+
+    def get_objects(self) -> List[str]:
+        """Get list of Parquet files in directory"""
+        if not os.path.exists(self.directory):
+            return []
+        return [f for f in os.listdir(self.directory) if f.endswith('.parquet')]
+
+    def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+        """Get preview data from Parquet file"""
+        file_path = os.path.join(self.directory, object_name)
+        return pd.read_parquet(file_path).head(limit)
 
 class CSVSinkConnector(SinkConnector):
     """CSV file sink connector"""
@@ -346,6 +433,17 @@ class CSVSinkConnector(SinkConnector):
     def close(self):
         """Close CSV connector (no-op for CSV)"""
         pass
+
+    def get_objects(self) -> List[str]:
+        """Get list of CSV files in directory"""
+        if not os.path.exists(self.directory):
+            return []
+        return [f for f in os.listdir(self.directory) if f.endswith('.csv')]
+
+    def get_preview(self, object_name: str, limit: int = 100) -> pd.DataFrame:
+        """Get preview data from CSV file"""
+        file_path = os.path.join(self.directory, object_name)
+        return pd.read_csv(file_path, nrows=limit)
 
 
 class JSONSinkConnector(SinkConnector):

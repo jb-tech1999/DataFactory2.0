@@ -2,7 +2,7 @@
 REST API for DataFactory 2.0
 Provides endpoints for job management, execution, and monitoring
 """
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile, File
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 from job_manager import JobManager
@@ -10,6 +10,9 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from datetime import datetime
 import uvicorn
+import os
+import shutil
+import uuid
 
 app = FastAPI(
     title="DataFactory 2.0 API",
@@ -211,6 +214,33 @@ async def delete_job(job_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+# File Upload Endpoint
+@app.post("/upload/file")
+async def upload_file(file: UploadFile = File(...)):
+    """Upload a file to the server"""
+    try:
+        # Create uploads directory if not exists
+        upload_dir = os.path.join(os.getcwd(), "uploads")
+        os.makedirs(upload_dir, exist_ok=True)
+        
+        # Generate unique filename to avoid collisions
+        unique_filename = f"{uuid.uuid4()}_{file.filename}"
+        file_path = os.path.join(upload_dir, unique_filename)
+        
+        # Save file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+            
+        return {
+            "filename": unique_filename,
+            "original_filename": file.filename,
+            "file_path": file_path,
+            "message": "File uploaded successfully"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # Job Execution Endpoints
 @app.post("/jobs/{job_id}/execute")
 async def execute_job(job_id: int, background_tasks: BackgroundTasks):
@@ -228,6 +258,27 @@ async def execute_job(job_id: int, background_tasks: BackgroundTasks):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/jobs/{job_id}/sink/objects")
+async def get_sink_objects(job_id: int):
+    """Get list of objects in the job's sink (tables/files)"""
+    try:
+        objects = job_manager.get_sink_objects(job_id)
+        return {"objects": objects}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/jobs/{job_id}/sink/preview")
+async def get_sink_preview(job_id: int, object_name: str, limit: int = 100):
+    """Get preview data from a sink object"""
+    try:
+        data = job_manager.get_sink_preview(job_id, object_name, limit)
+        return {"data": data, "count": len(data)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 # History and Logging Endpoints

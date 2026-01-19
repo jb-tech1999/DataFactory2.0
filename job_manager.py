@@ -287,7 +287,12 @@ class JobManager:
             
             # Create sink connector
             sink = self._create_sink_connector(job['sink_type'], job['sink_config'])
-            log_message('INFO', f'Created sink connector: {job["sink_type"]}')
+            sink_info = f"{job['sink_type']}"
+            if job['sink_type'] in ['csv', 'json', 'parquet']:
+                sink_info += f" (directory: {job['sink_config'].get('directory', 'N/A')})"
+            elif job['sink_type'] == 'sqlite':
+                sink_info += f" (database: {job['sink_config'].get('database_path', 'N/A')})"
+            log_message('INFO', f'Created sink connector: {sink_info}')
             
             # Create DataFactory instance
             df_app = datafactory_cli.DataFactory(source_connector=source, sink_connector=sink)
@@ -298,13 +303,22 @@ class JobManager:
             
             df = df_app.get_data(query)
             records_processed = len(df)
+
             
             log_message('INFO', f'Retrieved {records_processed} records')
             
             # Write data
             table_name = job['job_name'].replace(' ', '_').lower()
             df_app.write_data(df, table_name)
-            log_message('INFO', f'Data written to sink: {table_name}')
+            
+            # Log detailed output location
+            if job['sink_type'] in ['csv', 'json', 'parquet']:
+                output_dir = job['sink_config'].get('directory', 'N/A')
+                file_ext = job['sink_type']
+                output_path = os.path.join(output_dir, f'{table_name}.{file_ext}')
+                log_message('INFO', f'Data written to: {output_path}')
+            else:
+                log_message('INFO', f'Data written to sink table: {table_name}')
             
             # Close connections
             df_app.close_connections()
@@ -394,6 +408,41 @@ class JobManager:
             return ParquetSinkConnector(**config)
         else:
             raise ValueError(f'Unknown sink type: {sink_type}')
+
+    def get_sink_objects(self, job_id: int) -> List[str]:
+        """Get list of objects in the job's sink"""
+        job = self.get_job(job_id)
+        if not job:
+            return []
+        
+        try:
+            sink = self._create_sink_connector(job['sink_type'], job['sink_config'])
+            sink.connect()  # Ensure connection is established
+            objects = sink.get_objects()
+            sink.close()
+            return objects
+        except Exception as e:
+            print(f"Error getting sink objects: {e}")
+            return []
+
+    def get_sink_preview(self, job_id: int, object_name: str, limit: int = 100) -> List[Dict]:
+        """Get preview data from the job's sink"""
+        job = self.get_job(job_id)
+        if not job:
+            return []
+        
+        try:
+            sink = self._create_sink_connector(job['sink_type'], job['sink_config'])
+            sink.connect()  # Ensure connection is established
+            df = sink.get_preview(object_name, limit)
+            sink.close()
+            # Convert NaN/inf to None for JSON serialization
+            df = df.replace([float('inf'), float('-inf')], None)
+            df = df.fillna(value=None)
+            return df.to_dict(orient='records')
+        except Exception as e:
+            print(f"Error getting sink preview: {e}")
+            return []
     
     def get_job_history(self, job_id: int, limit: int = 50) -> List[Dict]:
         """Get execution history for a job"""
