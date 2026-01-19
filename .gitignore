@@ -39,9 +39,13 @@ env/
 # Data files
 *.csv
 *.json
+*.xlsx
+*.parquet
 output_csv/
 output_json/
 data/
+parquet_output/
+parquet_from_csv/
 
 # OS
 .DS_Store

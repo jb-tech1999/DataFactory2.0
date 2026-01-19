@@ -208,6 +208,47 @@ class JSONSourceConnector(SourceConnector):
         pass
 
 
+class ExcelSourceConnector(SourceConnector):
+    """Excel file source connector"""
+    
+    def __init__(self, file_path: str, sheet_name: str = None):
+        """
+        Initialize Excel source connector
+        
+        Args:
+            file_path: Path to Excel file
+            sheet_name: Specific sheet to read (default: first sheet)
+        """
+        self.file_path = file_path
+        self.sheet_name = sheet_name
+        self.df = None
+        self.sheets = None
+    
+    def connect(self):
+        """Load Excel file"""
+        if self.sheet_name:
+            self.df = pd.read_excel(self.file_path, sheet_name=self.sheet_name)
+        else:
+            # Read first sheet by default
+            self.df = pd.read_excel(self.file_path, sheet_name=0)
+    
+    def get_data(self, query: str = None) -> pd.DataFrame:
+        """Get data from Excel (query parameter not used for Excel)"""
+        return self.df
+    
+    def get_tables(self) -> pd.DataFrame:
+        """Get sheet information (returns sheet names as tables)"""
+        import openpyxl
+        wb = openpyxl.load_workbook(self.file_path, read_only=True)
+        sheet_names = wb.sheetnames
+        wb.close()
+        return pd.DataFrame({'TABLE_NAME': sheet_names})
+    
+    def close(self):
+        """Close Excel connector (no-op for Excel)"""
+        pass
+
+
 # Sink Connectors
 
 class SQLiteSinkConnector(SinkConnector):
@@ -324,4 +365,30 @@ class JSONSinkConnector(SinkConnector):
     
     def close(self):
         """Close JSON connector (no-op for JSON)"""
+        pass
+
+
+class ParquetSinkConnector(SinkConnector):
+    """Parquet file sink connector"""
+    
+    def __init__(self, directory: str):
+        """
+        Initialize Parquet sink connector
+        
+        Args:
+            directory: Directory to write Parquet files
+        """
+        self.directory = directory
+    
+    def connect(self):
+        """Ensure directory exists"""
+        os.makedirs(self.directory, exist_ok=True)
+    
+    def write_data(self, df: pd.DataFrame, table_name: str):
+        """Write data to Parquet file"""
+        file_path = os.path.join(self.directory, f'{table_name}.parquet')
+        df.to_parquet(file_path, index=False)
+    
+    def close(self):
+        """Close Parquet connector (no-op for Parquet)"""
         pass
